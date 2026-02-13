@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 
-function useCurrencyInfo(currency) {
+function useCurrencyInfo(currency, date = "latest") {
     const [data, setData] = useState({});
 
     useEffect(() => {
+        const apiDate = date || "latest";
         fetch(
-            `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${currency}.json`
+            `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${apiDate}/v1/currencies/${currency}.json`
         )
             .then((res) => {
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -16,7 +17,7 @@ function useCurrencyInfo(currency) {
                 console.error("Currency fetch failed:", err);
                 setData({});
             });
-    }, [currency]);
+    }, [currency, date]);
 
     return data;
 }
