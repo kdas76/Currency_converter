@@ -89,7 +89,7 @@ function App() {
                 setHasConverted(false);
               }}
               max={today}
-              min="2020-01-01"
+              min="2024-03-04"
               className="flex-1 sm:flex-none bg-white/5 border border-white/10 rounded-lg px-3 py-1.5
                          text-[0.8rem] text-white outline-none cursor-pointer
                          transition-all

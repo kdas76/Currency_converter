@@ -77,7 +77,7 @@ function InputBox({
                     disabled={amountdisable}
                     value={amount}
                     onChange={(e) => {
-                        onAmountChange && onAmountChange(Number(e.target.value));
+                        onAmountChange?.(e.target.value === "" ? "" : Number(e.target.value));
                     }}
                 />
             </div>
