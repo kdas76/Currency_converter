@@ -1,6 +1,8 @@
 import { useState } from "react";
 import InputBox from "./components/InputBox";
 import RateChart from "./components/RateChart";
+import LoginModal from "./components/LoginModal";
+import SubscribeModal from "./components/SubscribeModal";
 import useCurrencyInfo from "./hooks/useCurrencyInfo";
 import { getCountryName } from "./utils/currencyData";
 
@@ -10,37 +12,82 @@ function App() {
   const [toCurrency, setToCurrency] = useState("inr");
   const [convertedAmount, setConvertedAmount] = useState(0);
   const [hasConverted, setHasConverted] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(""); // "" means latest
+  const [selectedDate, setSelectedDate] = useState("");
   const [showChart, setShowChart] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showSubscribeModal, setShowSubscribeModal] = useState(false);
+
+  // 🔐 Auth + Usage State
+  const [isLoggedIn, setIsLoggedIn] = useState(
+    localStorage.getItem("isLoggedIn") === "true"
+  );
+
+  const [hasSubscription, setHasSubscription] = useState(
+    localStorage.getItem("hasSubscription") === "true"
+  );
+
+  const [usageCount, setUsageCount] = useState(() => {
+    const saved = localStorage.getItem("usageCount");
+    return saved ? Number(saved) : 0;
+  });
+
+  const [chartUsageCount, setChartUsageCount] = useState(() => {
+    const saved = localStorage.getItem("chartUsageCount");
+    return saved ? Number(saved) : 0;
+  });
 
   const currencyInfo = useCurrencyInfo(
     fromCurrency,
     selectedDate || "latest"
   );
+
   const options = Object.keys(currencyInfo);
 
-  const swap = () => {
-    const tempFrom = fromCurrency;
-    const tempTo = toCurrency;
-    const tempAmount = amount;
-    const tempConverted = convertedAmount;
-
-    setFromCurrency(tempTo);
-    setToCurrency(tempFrom);
-    setAmount(tempConverted);
-    setConvertedAmount(tempAmount);
+  // 🔢 Get Usage Limit
+  const getLimit = () => {
+    if (!isLoggedIn) return 1;
+    if (hasSubscription) return Infinity;
+    return 3;
   };
 
+  // 🔁 Swap currencies
+  const swap = () => {
+    setFromCurrency(toCurrency);
+    setToCurrency(fromCurrency);
+    setAmount(convertedAmount || amount);
+    setConvertedAmount(amount);
+    setHasConverted(false);
+  };
+
+  // 💱 Convert Function
   const convert = () => {
-    if (currencyInfo[toCurrency]) {
-      setConvertedAmount(
-        parseFloat((amount * currencyInfo[toCurrency]).toFixed(4))
+    const limit = getLimit();
+
+    if (usageCount >= limit) {
+      alert(
+        !isLoggedIn
+          ? "Please login to continue converting currencies."
+          : "Free limit reached. Please subscribe to continue."
       );
+      return;
+    }
+
+    if (currencyInfo[toCurrency] !== undefined) {
+      const result = parseFloat(
+        (amount * currencyInfo[toCurrency]).toFixed(4)
+      );
+
+      setConvertedAmount(result);
       setHasConverted(true);
+
+      if (limit !== Infinity) {
+        const newUsage = usageCount + 1;
+        setUsageCount(newUsage);
+        localStorage.setItem("usageCount", newUsage);
+      }
     }
   };
 
-  // Today's date for the max attribute
   const today = new Date().toISOString().split("T")[0];
 
   return (
@@ -54,69 +101,80 @@ function App() {
           #0f0f1a`,
       }}
     >
-      {/* Floating orbs */}
-      <div className="absolute w-72 h-72 rounded-full blur-3xl pointer-events-none bg-purple-500/10 top-[10%] left-[15%] animate-[float_8s_ease-in-out_infinite]" />
-      <div className="absolute w-60 h-60 rounded-full blur-3xl pointer-events-none bg-emerald-500/10 bottom-[15%] right-[10%] animate-[float_8s_ease-in-out_infinite_-3s]" />
-      <div className="absolute w-48 h-48 rounded-full blur-3xl pointer-events-none bg-red-400/8 top-[60%] left-[60%] animate-[float_8s_ease-in-out_infinite_-5s]" />
+      <div className="w-full max-w-lg bg-white/[0.05] backdrop-blur-2xl border border-white/10 rounded-3xl p-6 relative z-10 shadow-xl">
 
-      <div
-        className="w-full max-w-lg bg-white/[0.05] backdrop-blur-2xl border border-white/10
-                    rounded-3xl p-5 sm:p-7 relative z-10
-                    shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_0_0_1px_rgba(255,255,255,0.05)]
-                    animate-[slideUp_0.6s_cubic-bezier(0.16,1,0.3,1)]"
-      >
+        {/* 🔐 Auth Buttons */}
+        <div className="flex justify-end gap-3 mb-3 text-xs">
+          {!isLoggedIn ? (
+            <button
+              onClick={() => setShowLoginModal(true)}
+              className="px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/25 text-emerald-400
+                         cursor-pointer transition-all hover:bg-emerald-500/25 hover:text-emerald-300"
+            >
+              🔐 Login
+            </button>
+          ) : (
+            <>
+              {!hasSubscription && (
+                <button
+                  onClick={() => setShowSubscribeModal(true)}
+                  className="px-3 py-1.5 rounded-lg bg-purple-500/15 border border-purple-500/25 text-purple-400
+                             cursor-pointer transition-all hover:bg-purple-500/25 hover:text-purple-300"
+                >
+                  Subscription
+                </button>
+              )}
+
+              <button
+                onClick={() => {
+                  setIsLoggedIn(false);
+                  setHasSubscription(false);
+                  setUsageCount(0);
+                  setChartUsageCount(0);
+                  localStorage.setItem("isLoggedIn", "false");
+                  localStorage.setItem("hasSubscription", "false");
+                  localStorage.setItem("usageCount", 0);
+                  localStorage.setItem("chartUsageCount", 0);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-red-400
+                           cursor-pointer transition-all hover:bg-red-500/15 hover:text-red-300"
+              >
+                Logout
+              </button>
+            </>
+          )}
+        </div>
+
         {/* Header */}
-        <div className="text-center mb-6">
-          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight flex items-center justify-center gap-2">
-            <span className="text-2xl sm:text-3xl">💱</span> Currency Converter
+        <div className="text-center mb-5">
+          <h1 className="text-xl font-bold text-white">
+            💱 Currency Converter
           </h1>
-          <p className="text-[0.75rem] text-white/40 mt-1 tracking-wide">
-            Real-time exchange rates • 150+ currencies
+
+          <p className="text-[0.7rem] text-white/40 mt-2">
+            {(() => {
+              const limit = getLimit();
+              if (limit === Infinity) return "Unlimited conversions & charts";
+              const remainConvert = Math.max(limit - usageCount, 0);
+              const remainChart = Math.max(limit - chartUsageCount, 0);
+              return `Converts: ${remainConvert}  •  Charts: ${remainChart}`;
+            })()}
           </p>
         </div>
 
         {/* Date Picker */}
-        <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
-          <label className="text-[0.65rem] font-semibold uppercase tracking-wider text-white/40 shrink-0">
-            Rate Date
-          </label>
-          <div className="flex gap-2 w-full sm:w-auto">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => {
-                setSelectedDate(e.target.value);
-                setHasConverted(false);
-              }}
-              max={today}
-              min="2024-03-04"
-              className="flex-1 sm:flex-none bg-white/5 border border-white/10 rounded-lg px-3 py-1.5
-                         text-[0.8rem] text-white outline-none cursor-pointer
-                         transition-all
-                         hover:border-white/25
-                         focus:border-purple-500 focus:shadow-[0_0_0_2px_rgba(108,92,231,0.3)]
-                         [color-scheme:dark]"
-            />
-            {selectedDate && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedDate("");
-                  setHasConverted(false);
-                }}
-                className="px-3 py-1.5 bg-white/10 border border-white/10 rounded-lg text-[0.75rem]
-                           text-white/60 cursor-pointer transition-all
-                           hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/30"
-              >
-                Reset to Today
-              </button>
-            )}
-          </div>
-          {selectedDate && (
-            <span className="text-[0.7rem] text-amber-400/70">
-              Showing rates for {selectedDate}
-            </span>
-          )}
+        <div className="mb-4">
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => {
+              setSelectedDate(e.target.value);
+              setHasConverted(false);
+            }}
+            max={today}
+            min={"2024-03-04"}
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white"
+          />
         </div>
 
         <form
@@ -125,7 +183,6 @@ function App() {
             convert();
           }}
         >
-          {/* From */}
           <InputBox
             label="From"
             amount={amount}
@@ -138,24 +195,16 @@ function App() {
             selectCurrency={fromCurrency}
           />
 
-          {/* Swap */}
-          <div className="flex justify-center my-3 relative">
-            <div className="absolute top-1/2 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          <div className="flex justify-center my-3">
             <button
               type="button"
               onClick={swap}
-              className="relative z-10 w-11 h-11 rounded-full bg-purple-600 border-[3px] border-[#0f0f1a]
-                         text-white text-lg cursor-pointer flex items-center justify-center
-                         transition-all duration-300
-                         shadow-[0_4px_16px_rgba(108,92,231,0.4)]
-                         hover:rotate-180 hover:scale-110 hover:shadow-[0_6px_24px_rgba(108,92,231,0.5)]
-                         active:scale-95"
+              className="w-10 h-10 rounded-full bg-purple-600 text-white"
             >
-              <span className="font-bold">⇅</span>
+              ⇅
             </button>
           </div>
 
-          {/* To */}
           <InputBox
             label="To"
             amount={hasConverted ? convertedAmount : ""}
@@ -168,51 +217,62 @@ function App() {
             amountdisable
           />
 
-          {/* Action buttons */}
           <div className="flex gap-2 mt-4">
             <button
               type="submit"
-              className="flex-1 py-3 px-4 rounded-xl border-none
-                         bg-gradient-to-br from-emerald-400 to-emerald-600
-                         text-white font-bold text-[0.9rem] cursor-pointer
-                         transition-all duration-200
-                         shadow-[0_4px_16px_rgba(0,210,160,0.3)]
-                         hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(0,210,160,0.4)] hover:brightness-110
-                         active:translate-y-0"
+              className="flex-1 py-3 rounded-xl bg-emerald-500 text-white font-bold"
             >
-              Convert {fromCurrency.toUpperCase()} → {toCurrency.toUpperCase()}
+              Convert
             </button>
 
             <button
               type="button"
-              onClick={() => setShowChart(!showChart)}
-              className={`px-4 py-3 rounded-xl border text-[0.8rem] font-semibold cursor-pointer
-                          transition-all duration-200
-                          ${showChart
-                  ? "bg-purple-500/20 border-purple-500/40 text-purple-300"
-                  : "bg-white/5 border-white/10 text-white/60 hover:bg-purple-500/10 hover:border-purple-500/30 hover:text-purple-300"
-                }`}
+              onClick={() => {
+                // Closing is always free
+                if (showChart) {
+                  setShowChart(false);
+                  return;
+                }
+
+                // Opening costs 1 chart usage
+                const limit = getLimit();
+                if (chartUsageCount >= limit) {
+                  alert(
+                    !isLoggedIn
+                      ? "Please login to view more charts."
+                      : "Chart limit reached. Please subscribe for unlimited."
+                  );
+                  return;
+                }
+
+                setShowChart(true);
+
+                if (limit !== Infinity) {
+                  const newUsage = chartUsageCount + 1;
+                  setChartUsageCount(newUsage);
+                  localStorage.setItem("chartUsageCount", newUsage);
+                }
+              }}
+              className="px-4 py-3 rounded-xl bg-purple-500 text-white cursor-pointer transition-all
+                         hover:brightness-110 active:scale-95"
             >
               📊
             </button>
           </div>
         </form>
 
-        {/* Rate badge */}
+        {/* Rate Badge */}
         {hasConverted && currencyInfo[toCurrency] && (
-          <div className="text-center mt-4 animate-[fadeSlideUp_0.4s_ease]">
-            <span
-              className="inline-block px-4 py-1.5 bg-emerald-500/10 border border-emerald-500/20
-                          rounded-full text-[0.75rem] font-medium text-emerald-400 tracking-wide"
-            >
-              1 {fromCurrency.toUpperCase()} ({getCountryName(fromCurrency)}) ={" "}
-              {currencyInfo[toCurrency].toFixed(4)} {toCurrency.toUpperCase()} (
-              {getCountryName(toCurrency)})
+          <div className="text-center mt-4">
+            <span className="text-emerald-400 text-sm">
+              1 {fromCurrency.toUpperCase()} ({getCountryName(fromCurrency)}) =
+              {" "}
+              {currencyInfo[toCurrency].toFixed(4)}{" "}
+              {toCurrency.toUpperCase()} ({getCountryName(toCurrency)})
             </span>
           </div>
         )}
 
-        {/* Year Chart */}
         {showChart && (
           <RateChart
             fromCurrency={fromCurrency}
@@ -221,6 +281,36 @@ function App() {
           />
         )}
       </div>
+
+      {/* 🔐 Login Modal */}
+      {showLoginModal && (
+        <LoginModal
+          onClose={() => setShowLoginModal(false)}
+          onLogin={(email) => {
+            setIsLoggedIn(true);
+            setUsageCount(0);
+            setChartUsageCount(0);
+            localStorage.setItem("isLoggedIn", "true");
+            localStorage.setItem("userEmail", email);
+            localStorage.setItem("usageCount", 0);
+            localStorage.setItem("chartUsageCount", 0);
+            setShowLoginModal(false);
+          }}
+        />
+      )}
+
+      {/* ⭐ Subscribe Modal */}
+      {showSubscribeModal && (
+        <SubscribeModal
+          onClose={() => setShowSubscribeModal(false)}
+          onSubscribe={(plan) => {
+            setHasSubscription(true);
+            localStorage.setItem("hasSubscription", "true");
+            localStorage.setItem("plan", plan);
+            setShowSubscribeModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }
